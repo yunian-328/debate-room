@@ -10,4 +10,5 @@ COPY config ./config
 COPY smoke_openrouter.py .
 USER debate
 EXPOSE 8000
-CMD ["python","-m","uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","1"]
+# Shell 形式展开 $PORT：云平台（Render 等）注入 PORT 时自动使用，本地回退 8000
+CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
