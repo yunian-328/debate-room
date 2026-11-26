@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Debate Room 多模型评审：文案质检、代码评审、事实核查。">
+  <title>Debate Room · 多模型评审工作台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23143d3a'/%3E%3Ccircle cx='20' cy='22' r='7' fill='%2355c9b4'/%3E%3Ccircle cx='44' cy='22' r='7' fill='%23f4f7f5'/%3E%3Ccircle cx='32' cy='44' r='7' fill='%23f4f7f5'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --ink: #172a2a; --muted: #5b6d6a; --paper: #f4f7f5; --surface: #fdfefd;
+      --line: #d9e3df; --accent: #0e7568; --accent-dark: #09584f; --accent-soft: #e0f1ec;
+      --danger: #a63a3a; --warning: #885d12; --shadow: 0 12px 32px rgba(23, 42, 42, .07);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0; min-height: 100dvh; background: var(--paper); color: var(--ink);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      font-size: 16px; line-height: 1.65;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .58; }
+    a { color: var(--accent-dark); }
+    :focus-visible { outline: 3px solid #55b7a7; outline-offset: 3px; }
+    .shell { width: min(1440px, 100%); margin: 0 auto; padding: 24px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand svg { width: 40px; height: 40px; flex: none; }
+    .brand h1 { margin: 0; font-size: 21px; letter-spacing: .02em; }
+    .brand p { margin: 0; color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .mode {
+      display: inline-flex; align-items: center; min-height: 36px; padding: 4px 12px;
+      border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+      color: var(--muted); font-size: 13px;
+    }
+    .docs-link { font-size: 14px; text-decoration: none; padding: 10px 4px; }
+    .docs-link:hover { text-decoration: underline; }
+    .workspace { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 24px; align-items: start; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+    .composer { padding: 24px; }
+    .panel-heading { margin: 0 0 4px; font-size: 20px; }
+    .panel-intro { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 22px; }
+    .tab {
+      min-height: 48px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 10px;
+      background: transparent; color: var(--muted);
+      transition: background-color .18s ease-out, color .18s ease-out, border-color .18s ease-out;
+    }
+    .tab:hover { background: var(--paper); color: var(--ink); }
+    .tab[aria-selected="true"] { background: var(--accent-soft); border-color: #8abdb1; color: var(--accent-dark); font-weight: 700; }
+    .field { margin-bottom: 18px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 700; }
+    .hint { display: block; margin: -2px 0 8px; color: var(--muted); font-size: 13px; }
+    textarea, input, select {
+      width: 100%; border: 1px solid #bdcec8; border-radius: 10px; background: #fff; color: var(--ink);
+      transition: border-color .18s ease-out, box-shadow .18s ease-out;
+    }
+    textarea { min-height: 220px; resize: vertical; padding: 13px 14px; line-height: 1.6; }
+    input, select { min-height: 46px; padding: 9px 12px; }
+    textarea:hover, input:hover, select:hover { border-color: #82a79d; }
+    textarea:focus, input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14, 117, 104, .10); }
+    .char-count { margin-top: 5px; color: var(--muted); font-size: 12px; text-align: right; }
+    .submit {
+      width: 100%; min-height: 50px; border: 0; border-radius: 11px; background: var(--accent);
+      color: #fff; font-weight: 700; transition: background-color .18s ease-out, transform .18s ease-out;
+    }
+    .submit:hover:not(:disabled) { background: var(--accent-dark); }
+    .submit:active:not(:disabled) { transform: scale(.99); }
+    .local-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+    .results { padding: 24px; min-height: 560px; }
+    .result-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .status-badge {
+      display: inline-flex; align-items: center; min-height: 32px; padding: 3px 11px;
+      border-radius: 999px; background: var(--paper); color: var(--muted); font-size: 13px; white-space: nowrap;
+    }
+    .status-badge.done { background: var(--accent-soft); color: var(--accent-dark); }
+    .status-badge.failed { background: #f7e7e4; color: var(--danger); }
+    .progress { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 0; margin: 20px 0; list-style: none; }
+    .progress li { color: #788985; font-size: 12px; text-align: center; }
+    .progress li::before { content: ""; display: block; height: 4px; margin-bottom: 6px; border-radius: 4px; background: var(--line); }
+    .progress li.active { color: var(--accent-dark); font-weight: 700; }
+    .progress li.active::before { background: var(--accent); }
+    .task-id { margin: 0 0 16px; color: var(--muted); font-family: Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+    .empty { display: grid; place-items: center; min-height: 330px; text-align: center; color: var(--muted); }
+    .empty svg { width: 72px; height: 72px; margin-bottom: 16px; color: #8bb9ae; }
+    .empty h3 { margin: 0 0 6px; color: var(--ink); font-size: 18px; }
+    .empty p { max-width: 36ch; margin: 0; font-size: 14px; }
+    .alert { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: #f7e7e4; color: #7c2929; font-size: 14px; }
+    .score-row { display: flex; align-items: center; gap: 18px; padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .score { min-width: 92px; color: var(--accent-dark); font-size: 42px; font-weight: 800; line-height: 1; }
+    .score small { color: var(--muted); font-size: 14px; font-weight: 400; }
+    .verdict-summary { margin: 0; font-size: 16px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+    .tag { padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; }
+    .tag.warning { border-color: #d9bc83; color: var(--warning); background: #fbf4e6; }
+    .result-section { margin-top: 22px; }
+    .result-section h3 { margin: 0 0 10px; font-size: 15px; }
+    .result-section ul { margin: 0; padding-left: 22px; }
+    .result-section li { margin: 6px 0; }
+    .source-url { overflow-wrap: anywhere; font-size: 13px; }
+    .excerpt { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .cited-flag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 11px; }
+    .issue { padding: 12px 0; border-top: 1px solid var(--line); }
+    .issue:first-child { border-top: 0; }
+    .answer { padding: 14px; border-left: 3px solid var(--accent); background: var(--accent-soft); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--paper); color: var(--muted); font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    td.model { max-width: 220px; overflow-wrap: anywhere; font-family: Consolas, monospace; }
+    .cost-line { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+    .secondary {
+      min-height: 44px; margin-top: 18px; padding: 8px 16px; border: 1px solid #9fb7af;
+      border-radius: 10px; background: transparent; color: var(--accent-dark); font-weight: 700;
+    }
+    .secondary:hover { background: var(--accent-soft); }
+    .stats { margin-top: 18px; color: var(--muted); font-size: 13px; text-align: right; }
+    @media (max-width: 900px) {
+      .workspace { grid-template-columns: 1fr; }
+      .results { min-height: 420px; }
+    }
+    @media (max-width: 560px) {
+      .shell { padding: 14px; }
+      .topbar { align-items: flex-start; margin-bottom: 18px; }
+      .brand p, .docs-link { display: none; }
+      .brand h1 { font-size: 18px; }
+      .composer, .results { padding: 18px; border-radius: 14px; }
+      .tabs { grid-template-columns: 1fr; }
+      .tab { min-height: 44px; }
+      .field-row { grid-template-columns: 1fr; }
+      .progress li { font-size: 11px; }
+      .score { font-size: 36px; }
+      .stats { text-align: left; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#143d3a"/><path d="M15 17 33 17M15 17l9 16m9-16-9 16" stroke="#8ed8c8" stroke-width="2"/><circle cx="15" cy="17" r="5" fill="#55c9b4"/><circle cx="33" cy="17" r="5" fill="#f4f7f5"/><circle cx="24" cy="33" r="5" fill="#f4f7f5"/></svg>
+        <div><h1>Debate Room · 多模型评审</h1><p>跨厂商独立评审 · 分歧检测 · 来源可追溯</p></div>
+      </div>
+      <div class="top-actions">
+        <span class="mode" id="modeBadge">正在读取模式</span>
+        <a class="docs-link" href="/docs" target="_blank" rel="noopener">API 文档</a>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel composer" aria-labelledby="composerTitle">
+        <h2 class="panel-heading" id="composerTitle">新建评审任务</h2>
+        <p class="panel-intro">选择场景并提交内容，系统会自动调度多个模型。</p>
+        <form id="taskForm" novalidate>
+          <div class="tabs" role="tablist" aria-label="评审场景">
+            <button class="tab" type="button" role="tab" aria-selected="true" data-scenario="copy_review">文案质检</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="code_review">代码评审</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="fact_check">事实核查</button>
+          </div>
+          <div class="field">
+            <label for="content" id="contentLabel">待评审文案</label>
+            <span class="hint" id="contentHint">粘贴营销文案，多个模型将从表达、清晰度和合规角度评审。</span>
+            <textarea id="content" required maxlength="200000" placeholder="例如：全新一代智能水杯，让每一口水都更健康。"></textarea>
+            <div class="char-count"><span id="charCount">0</span> / 200000</div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="budget">预算上限（美元）</label>
+              <input id="budget" type="number" min="0.0001" max="100" step="0.01" value="0.10" required>
+            </div>
+            <div class="field">
+              <label for="latency">最长等待时间</label>
+              <select id="latency"><option value="30000">30 秒</option><option value="60000" selected>60 秒</option><option value="120000">120 秒</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="idempotency">请求标识（可选）</label>
+            <span class="hint">用于防止重复提交；不同任务请使用不同标识。</span>
+            <input id="idempotency" maxlength="120" autocomplete="off" placeholder="例如：copy-20261123-001">
+          </div>
+          <div class="field">
+            <label for="apiToken">访问令牌（可选）</label>
+            <span class="hint">仅真实预览模式需要；只保存在本机浏览器内存中，不会上传到其他位置。</span>
+            <input id="apiToken" type="password" maxlength="200" autocomplete="off" placeholder="DEBATE_ROOM_API_TOKEN">
+          </div>
+          <button class="submit" id="submitButton" type="submit">开始多模型评审</button>
+          <p class="local-note" id="formNote">内容仅发送到本机服务；Mock 模式不产生模型费用。</p>
+        </form>
+      </section>
+
+      <section class="panel results" aria-labelledby="resultTitle">
+        <div class="result-top">
+          <div><h2 class="panel-heading" id="resultTitle">评审结果</h2><p class="panel-intro">进度和模型输出会自动刷新。</p></div>
+          <span class="status-badge" id="statusBadge" role="status" aria-live="polite">等待提交</span>
+        </div>
+        <ol class="progress" id="progress" aria-label="任务进度">
+          <li data-step="received">接收</li><li data-step="routing">路由</li><li data-step="reviewing">评审</li><li data-step="judging">汇总</li><li data-step="done">完成</li>
+        </ol>
+        <p class="task-id" id="taskId" hidden></p>
+        <div class="alert" id="errorBox" role="alert" hidden></div>
+        <div class="empty" id="emptyState">
+          <div>
+            <svg viewBox="0 0 80 80" fill="none" aria-hidden="true"><circle cx="25" cy="25" r="12" stroke="currentColor" stroke-width="2"/><circle cx="57" cy="25" r="12" stroke="currentColor" stroke-width="2"/><circle cx="41" cy="57" r="12" stroke="currentColor" stroke-width="2"/><path d="m34 29 14 14m-12 0 13-14" stroke="currentColor" stroke-width="2"/></svg>
+            <h3>等待第一份内容</h3>
+            <p>提交后，这里会展示评审结论、各模型输出、分歧和成本。</p>
+          </div>
+        </div>
+        <div id="resultContent" hidden>
+          <div class="score-row"><div class="score"><span id="scoreValue">—</span><small> / 100</small></div><p class="verdict-summary" id="summary"></p></div>
+          <div class="tags" id="tags"></div>
+          <section class="result-section" id="decisionSection" hidden>
+            <h3>内部处理决定</h3>
+            <div class="answer" id="decisionText"></div>
+            <p class="hint">内部同意不等于事实核查通过。</p>
+            <ul id="voteList"></ul>
+          </section>
+          <section class="result-section" id="evidenceOutcomeSection" hidden>
+            <h3>联网核查</h3>
+            <div class="answer" id="evidenceOutcomeText"></div>
+            <p class="tag warning" id="evidenceConflict" role="status" hidden>内部同意与引用片段的反驳并存。请先人工核对，不要当作已证实。</p>
+          </section>
+          <section class="result-section" id="answerSection" hidden><h3>核查结论</h3><div class="answer" id="answerText"></div></section>
+          <section class="result-section" id="discussionSection" hidden>
+            <h3>内部讨论 · 未经证实</h3>
+            <p id="discussionNote" class="hint">以下是模型观点和待验证假设，不是事实或来源。</p>
+            <ul id="discussion"></ul>
+          </section>
+          <section class="result-section" id="sourcesSection" hidden><h3>检索来源</h3><ul id="sources"></ul></section>
+          <section class="result-section" id="suggestionsSection" hidden><h3>修改建议</h3><ul id="suggestions"></ul></section>
+          <section class="result-section" id="issuesSection" hidden><h3>代码问题</h3><div id="issues"></div></section>
+          <section class="result-section" id="flagsSection" hidden><h3>合规风险</h3><ul id="flags"></ul></section>
+          <section class="result-section" id="disagreementsSection" hidden><h3>模型分歧</h3><ul id="disagreements"></ul></section>
+          <section class="result-section" id="alternativesSection" hidden><h3>其他结论</h3><ul id="alternatives"></ul></section>
+          <section class="result-section"><h3>模型调用</h3><div class="table-wrap"><table><thead><tr><th>模型</th><th>槽位</th><th>状态</th><th>Token</th><th>延迟</th><th>成本</th></tr></thead><tbody id="modelRows"></tbody></table></div><p class="cost-line" id="costLine"></p></section>
+          <button class="secondary" id="newTaskButton" type="button">再评审一份内容</button>
+        </div>
+      </section>
+    </div>
+    <footer class="stats" id="stats">正在读取服务统计</footer>
+  </main>
+
+  <script>
+    const scenarios = {
+      copy_review: {
+        label: "待评审文案",
+        hint: "粘贴营销文案，多个模型将从表达、清晰度和合规角度评审。",
+        placeholder: "例如：全新一代智能水杯，让每一口水都更健康。",
+        endpoint: "/api/v1/hooks/form"
+      },
+      code_review: {
+        label: "待评审代码 Diff",
+        hint: "粘贴 Pull Request 的 diff，模型将检查正确性、安全性和测试风险。",
+        placeholder: "diff --git a/app.py b/app.py\n+password = input()",
+        endpoint: "/api/v1/hooks/code-review"
+      },
+      fact_check: {
+        label: "待核查说法",
+        hint: "先检索证据；证据不足时仍展示不同模型的讨论，但不下事实结论。",
+        placeholder: "例如：每天喝八杯水对所有人的健康都是必需的。",
+        endpoint: "/api/v1/hooks/fact-check"
+      }
+    };
+    const evidenceNames = { disabled: "检索未启用", found: "已检索到来源", empty: "未检索到来源", unavailable: "检索不可用" };
+    const statusNames = { received: "已接收", routing: "路由中", reviewing: "评审中", judging: "汇总中", done: "已完成", failed: "已失败" };
+    const state = { scenario: "copy_review", taskId: null, polling: false, mode: null, searchProvider: null };
+    const $ = (id) => document.getElementById(id);
+    const form = $("taskForm");
+
+    function selectScenario(name) {
+      state.scenario = name;
+      document.querySelectorAll(".tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.scenario === name)));
+      const config = scenarios[name];
+      $("contentLabel").textContent = config.label;
+      $("contentHint").textContent = config.hint;
+      $("content").placeholder = config.placeholder;
+      $("submitButton").textContent = name === "fact_check" ? "开始独立核查" : "开始多模型评审";
+      renderModeNotice();
+    }
+    document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => selectScenario(tab.dataset.scenario)));
+    $("content").addEventListener("input", () => { $("charCount").textContent = $("content").value.length; });
+
+    function setStatus(status) {
+      $("statusBadge").textContent = statusNames[status] || status;
+      $("statusBadge").className = "status-badge" + (["done", "failed"].includes(status) ? " " + status : "");
+      const order = ["received", "routing", "reviewing", "judging", "done"];
+      const current = status === "failed" ? -1 : order.indexOf(status);
+      document.querySelectorAll("#progress li").forEach((step) => {
+        step.classList.toggle("active", current >= order.indexOf(step.dataset.step));
+      });
+    }
+    function showError(message) {
+      $("errorBox").textContent = message;
+      $("errorBox").hidden = !message;
+    }
+    async function request(url, options = {}) {
+      const token = $("apiToken").value.trim();
+      if (token) {
+        options.headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
+      }
+      const response = await fetch(url, options);
+      let data;
+      try { data = await response.json(); } catch { data = { detail: `HTTP ${response.status}` }; }
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : `请求失败（HTTP ${response.status}）`);
+      return data;
+    }
+    function makeList(id, items, transform = (item) => String(item)) {
+      const section = $(id + "Section");
+      const list = $(id);
+      list.replaceChildren();
+      const values = Array.isArray(items) ? items : [];
+      values.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = transform(item);
+        list.appendChild(li);
+      });
+      section.hidden = values.length === 0;
+    }
+    function renderIssues(issues) {
+      const container = $("issues");
+      container.replaceChildren();
+      (Array.isArray(issues) ? issues : []).forEach((issue) => {
+        const block = document.createElement("div");
+        block.className = "issue";
+        const title = document.createElement("strong");
+        title.textContent = `${issue.severity || "medium"} · ${issue.title || "未命名问题"}`;
+        const location = document.createElement("p");
+        location.textContent = `位置：${issue.file || "—"}:${issue.line || 0} ｜ 置信度：${issue.confidence || "—"}`;
+        const suggestion = document.createElement("p");
+        suggestion.textContent = issue.suggestion || issue.evidence || "未提供修复建议";
+        block.append(title, location, suggestion);
+        container.appendChild(block);
+      });
+      $("issuesSection").hidden = container.children.length === 0;
+    }
+    function renderSources(verdict) {
+      const list = $("sources");
+      list.replaceChildren();
+      const values = Array.isArray(verdict.sources) ? verdict.sources : [];
+      const cited = new Set(Array.isArray(verdict.cited_source_ids) ? verdict.cited_source_ids : []);
+      values.forEach((source) => {
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+        link.className = "source-url";
+        try {
+          const sourceUrl = new URL(source.url);
+          if (sourceUrl.protocol === "https:") link.href = sourceUrl.href;
+        } catch { /* show the source text without a link */ }
+        link.textContent = source.title || source.url || "网页来源";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        li.append(link);
+        if (cited.has(source.id)) {
+          const flag = document.createElement("span");
+          flag.className = "cited-flag";
+          flag.textContent = "一致组共同引用";
+          li.append(flag);
+        }
+        if (source.attribution) {
+          const note = document.createElement("p");
+          note.textContent = source.attribution;
+          if (source.license_url === "https://creativecommons.org/licenses/by-sa/4.0/") {
+            const license = document.createElement("a");
+            license.href = source.license_url;
+            license.target = "_blank";
+            license.rel = "noopener noreferrer";
+            license.textContent = " · CC BY-SA 4.0";
+            note.append(license);
+          }
+          li.append(note);
+        }
+        const excerpt = document.createElement("p");
+        excerpt.className = "excerpt";
+        excerpt.textContent = source.excerpt || source.summary || "";
+        if (excerpt.textContent) li.append(excerpt);
+        list.appendChild(li);
+      });
+      $("sourcesSection").hidden = values.length === 0;
+    }
+    function renderModels(outputs, totalCost) {
+      const rows = $("modelRows");
+      rows.replaceChildren();
+      (outputs || []).forEach((output) => {
+        const row = document.createElement("tr");
+        const values = [output.model, output.slot, output.status, `${(output.prompt_tokens || 0) + (output.completion_tokens || 0)}`, `${output.latency_ms || 0} ms`, `$${Number(output.cost_usd || 0).toFixed(6)}`];
+        values.forEach((value, index) => {
+          const cellElement = document.createElement("td");
+          cellElement.textContent = value ?? "—";
+          if (index === 0) cellElement.className = "model";
+          row.appendChild(cellElement);
+        });
+        rows.appendChild(row);
+      });
+      $("costLine").textContent = `本次记录成本（Mock 为模拟值）：$${Number(totalCost || 0).toFixed(6)} ｜ 成功与失败调用均保留在记录中`;
+    }
+    function renderTask(detail) {
+      state.taskId = detail.task_id;
+      setStatus(detail.status);
+      $("taskId").textContent = `任务 ID：${detail.task_id}`;
+      $("taskId").hidden = false;
+      $("emptyState").hidden = true;
+      $("resultContent").hidden = false;
+      showError(detail.status === "failed" ? (detail.error || "任务失败，请查看错误记录。") : "");
+      const verdict = detail.verdict || {};
+      $("scoreValue").textContent = detail.scenario === "fact_check" && verdict.score != null
+        ? `一致度 ${verdict.score}%（非准确率）` : verdict.score ?? "—";
+      $("summary").textContent = verdict.summary || (detail.status === "failed" ? "任务未完成" : "模型正在生成结论…");
+      $("tags").replaceChildren();
+      const evidenceLabel = verdict.evidence_status ? `检索：${evidenceNames[verdict.evidence_status] || verdict.evidence_status}` : "";
+      const tags = [
+        verdict.confidence ? `置信度：${verdict.confidence}` : "",
+        verdict.needs_human === true ? "需要人工复核" : "",
+        verdict.stance ? `立场：${verdict.stance}` : "",
+        evidenceLabel
+      ].filter(Boolean);
+      tags.forEach((text) => {
+        const tag = document.createElement("span");
+        tag.className = "tag" + (text.includes("人工") ? " warning" : "");
+        tag.textContent = text;
+        $("tags").appendChild(tag);
+      });
+      const isFact = detail.scenario === "fact_check" && Boolean(verdict.stance);
+      $("decisionSection").hidden = !isFact || !verdict.internal_decision;
+      $("evidenceOutcomeSection").hidden = !isFact;
+      const approved = verdict.internal_decision === "can_proceed";
+      $("decisionText").textContent = approved ? "可以（内部一致同意）" : "未达成全体同意";
+      const votes = $("voteList");
+      votes.replaceChildren();
+      const voteLabels = { yes: "同意", no: "不同意", uncertain: "不确定", missing: "未返回有效评审" };
+      for (const entry of Array.isArray(verdict.internal_votes) ? verdict.internal_votes : []) {
+        const item = document.createElement("li");
+        item.textContent = `${entry.reviewer}：${voteLabels[entry.vote] || "不确定"}`;
+        votes.appendChild(item);
+      }
+      const evidenceOutcomes = {
+        supported: "当前引用片段支持该说法；请核对原文。",
+        refuted: "当前引用片段反驳该说法；请核对原文。",
+        insufficient_evidence: "证据不足，未能核实。"
+      };
+      $("evidenceOutcomeText").textContent = evidenceOutcomes[verdict.stance] || "";
+      $("evidenceConflict").hidden = !(isFact && approved && verdict.stance === "refuted");
+      $("answerSection").hidden = !verdict.answer;
+      $("answerText").textContent = verdict.answer || "";
+      renderSources(verdict);
+      makeList("suggestions", verdict.suggestions);
+      renderIssues(verdict.issues);
+      makeList("flags", verdict.compliance_flags);
+      const discussion = Array.isArray(verdict.discussion) ? verdict.discussion : [];
+      makeList("discussion", discussion, (item) => `${item.reviewer || "评审"}：${item.opinion}`);
+      $("discussionNote").textContent = verdict.discussion_status === "partial"
+        ? "部分模型未返回，仅展示已取得的观点。以下不是事实或来源。"
+        : "以下是模型观点和待验证假设，不是事实或来源。";
+      makeList("disagreements", discussion.length ? [] : verdict.disagreements);
+      makeList("alternatives", discussion.length ? [] : verdict.alternatives, (item) => `${item.reviewer || "评审"}：${item.answer || item}`);
+      renderModels(detail.model_outputs, detail.total_cost_usd);
+    }
+    async function pollTask(taskId) {
+      if (state.polling) return;
+      state.polling = true;
+      let networkFailures = 0;
+      try {
+        for (let attempt = 0; attempt < 150; attempt += 1) {
+          try {
+            const detail = await request(`/api/v1/tasks/${taskId}`);
+            networkFailures = 0;
+            showError("");
+            renderTask(detail);
+            if (["done", "failed"].includes(detail.status)) {
+              loadStats();
+              return;
+            }
+          } catch (error) {
+            networkFailures += 1;
+            if (networkFailures >= 3) {
+              throw new Error(`暂时无法连接服务，请确认服务仍在运行后刷新页面。任务 ID：${taskId}。${error.message}`);
+            }
+            showError(`连接暂时中断，正在重试（${networkFailures}/3）…`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+        throw new Error(`等待结果超时，请稍后通过任务 ID 查询：${taskId}`);
+      } catch (error) {
+        showError(error.message);
+        $("statusBadge").textContent = "等待恢复";
+        $("statusBadge").className = "status-badge failed";
+        $("summary").textContent = "任务可能仍在后台处理，请不要重复提交。";
+      } finally {
+        state.polling = false;
+        $("submitButton").disabled = false;
+        $("submitButton").textContent = state.scenario === "fact_check" ? "开始独立核查" : "开始多模型评审";
+      }
+    }
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if ($("submitButton").disabled || state.polling) return;
+      showError("");
+      const content = $("content").value.trim();
+      const budget = Number($("budget").value);
+      if (!content) { showError("请先填写需要评审的内容。"); $("content").focus(); return; }
+      if (!Number.isFinite(budget) || budget <= 0 || budget > 100) { showError("预算必须大于 0 且不超过 100 美元。"); $("budget").focus(); return; }
+      $("submitButton").disabled = true;
+      $("submitButton").textContent = "正在提交…";
+      $("emptyState").hidden = true;
+      $("resultContent").hidden = false;
+      $("summary").textContent = "任务正在提交，请稍候。";
+      $("answerSection").hidden = true;
+      $("decisionSection").hidden = true;
+      $("evidenceOutcomeSection").hidden = true;
+      $("discussionSection").hidden = true;
+      const key = $("idempotency").value.trim();
+      const scenario = state.scenario;
+      const language = scenario === "fact_check" && !/[\u3400-\u9fff]/.test(content) ? "en" : "zh";
+      const body = { content, language, constraints: { max_cost_usd: budget, max_latency_ms: Number($("latency").value) } };
+      const headers = { "Content-Type": "application/json" };
+      if (key) headers["Idempotency-Key"] = key;
+      try {
+        const accepted = await request(scenarios[scenario].endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+        setStatus("received");
+        await pollTask(accepted.task_id);
+      } catch (error) {
+        showError(error.message);
+        setStatus("failed");
+        $("submitButton").disabled = false;
+        $("submitButton").textContent = scenario === "fact_check" ? "开始独立核查" : "开始多模型评审";
+      }
+    });
+    $("newTaskButton").addEventListener("click", () => {
+      if ($("submitButton").disabled || state.polling) return;
+      const token = $("apiToken").value;
+      form.reset();
+      $("apiToken").value = token;
+      $("budget").value = "0.10";
+      $("latency").value = "60000";
+      $("content").value = "";
+      $("charCount").textContent = "0";
+      $("resultContent").hidden = true;
+      $("emptyState").hidden = false;
+      $("taskId").hidden = true;
+      showError("");
+      setStatus("received");
+      $("statusBadge").textContent = "等待提交";
+      document.querySelectorAll("#progress li").forEach((step) => step.classList.remove("active"));
+      $("content").focus();
+    });
+    async function loadStats() {
+      try {
+        const stats = await request("/api/v1/stats");
+        $("stats").textContent = `累计成功调用 ${stats.successful_model_calls || 0} 次 ｜ Token ${stats.total_tokens || 0} ｜ 成本 $${Number(stats.total_cost_usd || 0).toFixed(6)}`;
+      } catch { $("stats").textContent = "暂时无法读取服务统计"; }
+    }
+    function renderModeNotice() {
+      if (state.mode === "mock") {
+        $("formNote").textContent = "Mock 模式不调用模型或联网检索；结果和费用为模拟值。";
+      } else if (state.scenario === "fact_check") {
+        if (state.searchProvider === "none") {
+          $("formNote").textContent = "检索已关闭；只向模型提供输入，缺证据则不下核查结论。";
+        } else {
+          const name = state.searchProvider === "brave" ? "Brave" : state.searchProvider === "wikimedia" ? "Wikimedia（Wikipedia）" : "服务器配置的外部服务";
+          $("formNote").textContent = `事实核查会把说法发送给${name}检索；不要提交私人、课程受限或保密内容。搜索片段不等于原始证据。`;
+        }
+      } else {
+        $("formNote").textContent = "真实模式会将内容发给模型；不要提交私人、课程受限或保密内容。";
+      }
+    }
+    async function loadMode() {
+      try {
+        const info = await request("/");
+        state.mode = info.mode;
+        state.searchProvider = info.fact_search_provider;
+        $("modeBadge").textContent = info.mode === "mock" ? "Mock 离线演示" : "OpenRouter 私有预览";
+      } catch {
+        $("modeBadge").textContent = "线上预览 · 需访问令牌";
+      }
+      renderModeNotice();
+    }
+    $("apiToken").addEventListener("change", loadMode);
+    loadMode();
+    loadStats();
+  </script>
+</body>
+</html>
