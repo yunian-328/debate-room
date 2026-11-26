@@ -34,6 +34,33 @@ class OpenRouterPreviewTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.close()
 
-    def test_credentials_not_sent_to_custom_url(self):
-        with self.assertRaises(ValueError):
-            OpenRouterClient(Settings(openrouter_api_key="test-key", openrouter_base_url="https://example.org"))
+    async def test_custom_endpoint_skips_whitelist_and_openrouter_fields(self):
+        """自定义端点（如 DeepSeek）：允许任意模型名，且不带 OpenRouter 专属字段。"""
+        def handler(request):
+            self.assertEqual(str(request.url), "https://example.org/chat/completions")
+            payload = json.loads(request.content)
+            self.assertEqual(payload["model"], "deepseek-chat")
+            self.assertNotIn("plugins", payload)
+            self.assertNotIn("provider", payload)
+            self.assertNotIn("usage", payload)
+            return httpx.Response(200, json={
+                "model": "deepseek-chat",
+                "choices": [{"message": {"content": "OK"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 8, "completion_tokens": 1},
+            })
+        client = OpenRouterClient(
+            Settings(openrouter_api_key="test-key", openrouter_base_url="https://example.org"),
+            transport=httpx.MockTransport(handler),
+        )
+        try:
+            reply = await client.complete(
+                ModelSpec("deepseek-chat", "custom-1", input_per_million=0.27, output_per_million=1.10),
+                [{"role": "user", "content": "hi"}],
+                max_tokens=8,
+                timeout_seconds=1,
+            )
+            self.assertEqual(reply.content, "OK")
+            # usage 无 cost 字段时按 ModelSpec 定价估算
+            self.assertGreater(reply.cost_usd, 0)
+        finally:
+            await client.close()
